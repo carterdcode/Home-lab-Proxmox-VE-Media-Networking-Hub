@@ -40,29 +40,31 @@ Before installing Proxmox, the hardware was sanitised to ensure stability:
 Instead of standard directories, I utilized **ZFS Datasets**.
 * **Command:** `zfs create hdd-storage/media`
 * **Benefit:** This treats the folder as a standalone file system. It allows for granular snapshots, individual quotas (e.g., stopping Media from filling the entire 8TB drive), and dataset-specific compression (LZ4).
+<img width="996" height="515" alt="create-zfs" src="https://github.com/user-attachments/assets/06dc41fa-b7e0-4a13-a2db-2777e4e391b7" />
 
-### Docker-in-LXC Configuration
+## 🐋 Docker-in-LXC Configuration
 To run **Immich**, I opted for a Docker-enabled LXC. This provides near-native performance compared to a VM. 
 **Critical Feature Flags Enabled:**
 * **FUSE & Nesting:** Required for Docker to manage image layers efficiently.
 * **Keyctl:** Mandatory for the Docker daemon to use the Linux kernel keyring for secret management.
+<img width="685" height="709" alt="final-settings" src="https://github.com/user-attachments/assets/f01f2a08-0a68-4a8e-ab0e-30938b776640" />
 
 ---
 
-### 🔒 Networking & Security
+## 🔒 Networking & Security
 Tailscale Subnet Routing
 
 Instead of opening ports (Port Forwarding), I deployed Tailscale and enabled IP Forwarding.
 
-    Subnet Router: Configured the ProDesk to advertise the 192.168.x.x/24 route.
+Subnet Router: Configured the ProDesk to advertise the 192.168.x.x/24 route.
 
-    Benefit: I can access the Proxmox GUI and Immich dashboard from anywhere in the world as if I were on my home Wi-Fi, using encrypted WireGuard tunnels.
+Benefit: I can access the Proxmox GUI and Immich dashboard from anywhere in the world as if I were on my home Wi-Fi, using encrypted WireGuard tunnels.
 
 **Hardening with Fail2Ban**
 
 * Installed fail2ban on the host to monitor SSH and Web GUI login attempts.
 
-    Optimization: Added specific local management IPs to the ignoreip list to prevent accidental lockout while maintaining a zero-tolerance policy for external brute-force attempts.
+    Optimization: Added specific local & tailnet management IPs to the ignoreip list to prevent accidental lockout while maintaining a zero-tolerance policy for external brute-force attempts.
 
 ---
 
@@ -75,10 +77,10 @@ This section outlines the primary technical challenge encountered during the dep
 
 **The Problem**
 After mounting the 8TB HDD to the Immich container, the services (PostgreSQL/Redis) failed to start with a `Permission Denied` error.
+<img width="1267" height="155" alt="permission-denied" src="https://github.com/user-attachments/assets/360a49e8-75c9-477e-84e9-7720b011d00c" />
 
 **The Root Cause: Sub-UID Mapping**
 In Proxmox, an **Unprivileged Container** is a major security feature. It ensures that the root user inside the container is not the same as the root user on the host. 
-
 
 By default, Proxmox maps the container's UIDs to a range starting at **100,000** on the host. 
 * **Container Root (UID 0)** = **Host User (UID 100,000)**.
@@ -89,12 +91,14 @@ To resolve this without compromising the "Unprivileged" security boundary, I per
 
 ```bash
 # On the Proxmox Host Shell:
-# Change ownership to the mapped LXC root (100,000)
+# Change ownership to the mapped LXC root (100000)
 chown -R 100000:100000 /mnt/pve/hdd-storage/media
 
 # Set permissions: Owner (rwx), Group/Others (rx)
 chmod -R 755 /mnt/pve/hdd-storage/media
 ```
+<img width="667" height="44" alt="chown-chmod" src="https://github.com/user-attachments/assets/6e10e677-d930-4c25-8576-7a1e78e87cc7" />
+
 Why this matters: This fix maintains the security "sandbox." Even if an attacker gains root access inside the Immich container, they are still just a "nobody" (UID 100,000) on the actual host, preventing them from accessing host-level system files.
 
 ### Issue 2
@@ -125,5 +129,5 @@ This highlighted the importance of Staging vs. Production. Moving forward, I imp
     [ ] Samba AD/DC: Transitioning to centralized identity management.
 
     [ ] Snapshot Automation: Automating ZFS snapshots to the 8TB drive before any major config changes.
-
+    
     [ ] Hardware Expansion: Upgrading RAM to 16GB to support Windows Server VMs.
